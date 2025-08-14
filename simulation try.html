@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ray vs Wave Optics — Canvas Demo (TracePro-like vs RCWA-like)</title>
+<style>
+  :root {
+    --bg: #0f1220;
+    --panel: #161a2b;
+    --ink: #e8ecf4;
+    --muted: #9aa3b2;
+    --accent: #66d9ef;
+    --good: #b8e986;
+    --warn: #f6c177;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    color: var(--ink);
+    background: radial-gradient(1200px 600px at 30% -10%, #1a1f35, #0b0e1a 60%, #080a16 100%);
+  }
+  header {
+    padding: 20px clamp(16px, 4vw, 32px) 10px;
+  }
+  h1 {
+    font-size: clamp(18px, 2.4vw, 24px);
+    margin: 0 0 8px 0;
+    letter-spacing: 0.2px;
+  }
+  p.topnote {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 16px;
+    padding: 12px clamp(16px, 4vw, 32px) 24px;
+  }
+  .panel {
+    background: linear-gradient(180deg, #14182a, #0f1324);
+    border: 1px solid #232842;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  .controls {
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 120px;
+    gap: 10px;
+    align-items: center;
+  }
+  .row.wide { grid-template-columns: 1fr; }
+  label {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  select, input[type="number"], input[type="range"] {
+    width: 100%;
+    padding: 8px 10px;
+    background: #0d1122;
+    color: var(--ink);
+    border: 1px solid #242a44;
+    border-radius: 8px;
+    outline: none;
+  }
+  input[type="checkbox"] {
+    transform: translateY(2px);
+    margin-right: 8px;
+  }
+  .hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .scene-wrap {
+    padding: 12px;
+  }
+  .legend {
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    padding: 8px 12px 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .chip { display: inline-flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot-ray { background: #7ef9ff; box-shadow: 0 0 10px #4ee; }
+  .dot-wave { background: #ffd166; box-shadow: 0 0 10px #fc6; }
+  .dot-screen { background: #b8e986; box-shadow: 0 0 10px #b8e986; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 10px; }
+  .footer {
+    padding: 10px 12px 16px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .btn-row { display: flex; gap: 8px; }
+  button {
+    background: #1a2140;
+    color: var(--ink);
+    border: 1px solid #2e375e;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button:hover { background: #202853; }
+  .small { font-size: 0.82rem; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Ray vs Wave Optics — TracePro‑like Rays vs RCWA‑like Diffraction (Canvas Animation)</h1>
+    <p class="topnote">Conceptual demo: light shining on an aperture/grating. <strong>Ray mode</strong> shows straight-line propagation (geometric optics). <strong>Wave mode</strong> shows interference/diffraction on the screen using standard formulas (RCWA‑like result).</p>
+  </header>
+
+  <div class="app">
+    <!-- Controls -->
+    <div class="panel">
+      <div class="controls">
+        <div class="row">
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="ray">Ray (TracePro-like)</option>
+            <option value="wave">Wave (RCWA-like)</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="objectType">Object</label>
+          <select id="objectType">
+            <option value="single">Single slit</option>
+            <option value="grating">N-slit grating</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="wavelength">Wavelength λ (nm)</label>
+          <input id="wavelength" type="number" min="350" max="1600" step="10" value="550" />
+        </div>
+
+        <div class="row">
+          <label for="slitWidth">Slit width a (µm)</label>
+          <input id="slitWidth" type="number" min="1" max="200" step="1" value="20" />
+        </div>
+
+        <div class="row">
+          <label for="period">Period d (µm) [grating]</label>
+          <input id="period" type="number" min="2" max="300" step="1" value="50" />
+        </div>
+
+        <div class="row">
+          <label for="nslits"># of slits N [grating]</label>
+          <input id="nslits" type="number" min="2" max="50" step="1" value="5" />
+        </div>
+
+        <div class="row">
+          <label for="distance">Screen distance L (mm)</label>
+          <input id="distance" type="number" min="50" max="2000" step="10" value="300" />
+        </div>
+
+        <div class="row">
+          <label for="animate"><input id="animate" type="checkbox" checked /> Animate</label>
+          <div class="btn-row">
+            <button id="reset">Reset defaults</button>
+          </div>
+        </div>
+
+        <div class="row wide">
+          <div class="hint">
+            <strong>Tip:</strong> To mimic **micro‑structures** (e.g., 50&nbsp;µm pitch extractors), use large <em>a</em> / <em>d</em> and Ray mode.  
+            For **diffractive gratings** (sub‑µm scale), use small <em>a</em>, small <em>d</em>, Wave mode (RCWA‑like).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scene -->
+    <div class="panel">
+      <div class="legend">
+        <span class="chip"><span class="dot dot-ray"></span> Rays (geometric)</span>
+        <span class="chip"><span class="dot dot-wave"></span> Huygens wavelets</span>
+        <span class="chip"><span class="dot dot-screen"></span> Screen intensity</span>
+      </div>
+      <div class="scene-wrap">
+        <canvas id="scene" width="1100" height="540" aria-label="ray vs wave optics canvas"></canvas>
+      </div>
+      <div class="footer">
+        <div class="small">
+          <strong>RCWA‑like note:</strong> The wave view uses standard diffraction formulas (Fraunhofer single slit, finite N‑slit grating) to emulate the kind of intensity distribution a rigorous solver (RCWA/FDTD) would predict, while the rays view reflects TracePro‑style non‑sequential ray behavior without interference.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // --------- State & DOM ----------
+  const $ = id => document.getElementById(id);
+  const controls = {
+    mode: $('mode'),
+    objectType: $('objectType'),
+    wavelength: $('wavelength'),
+    slitWidth: $('slitWidth'),
+    period: $('period'),
+    nslits: $('nslits'),
+    distance: $('distance'),
+    animate: $('animate'),
+    reset: $('reset'),
+  };
+  const canvas = $('scene');
+  const ctx = canvas.getContext('2d');
+
+  // Default parameters (physical units)
+  const defaults = {
+    mode: 'ray',
+    objectType: 'single',
+    wavelength_nm: 550,
+    slitWidth_um: 20,
+    period_um: 50,
+    nslits: 5,
+    distance_mm: 300,
+    animate: true,
+  };
+
+  function applyDefaults(){
+    controls.mode.value = defaults.mode;
+    controls.objectType.value = defaults.objectType;
+    controls.wavelength.value = defaults.wavelength_nm;
+    controls.slitWidth.value = defaults.slitWidth_um;
+    controls.period.value = defaults.period_um;
+    controls.nslits.value = defaults.nslits;
+    controls.distance.value = defaults.distance_mm;
+    controls.animate.checked = defaults.animate;
+  }
+  applyDefaults();
+
+  // --------- Geometry (canvas coordinates) ----------
+  // Left-to-right: Source -> Aperture -> Free space -> Screen
+  const geom = {
+    margin: 20,
+    sourceX: 70,
+    apertureX: 250,
+    screenX: canvas.width - 120,
+    top: 60,
+    bottom: canvas.height - 60,
+    midY: canvas.height / 2,
+    apertureHeight: 260, // visible height of the opaque plate
+    screenWidth: 40,
+    freeSpaceColor: '#0c1022',
+    plateColor: '#2a3154',
+  };
+
+  // --------- Helpers: units & math ----------
+  const toMeters = {
+    nm: v => v * 1e-9,
+    um: v => v * 1e-6,
+    mm: v => v * 1e-3,
+  };
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const TAU = Math.PI * 2;
+
+  // Small-angle or exact? We'll use exact sinθ = y / sqrt(y^2 + L^2) to be robust.
+  function sinTheta(y_m, L_m) {
+    const r = Math.hypot(y_m, L_m);
+    return y_m / r;
+  }
+
+  // Sinc with safe handling
+  function sinc(x) {
+    if (Math.abs(x) < 1e-9) return 1;
+    return Math.sin(x) / x;
+  }
+
+  // --------- Diffraction Intensities (Fraunhofer) ----------
+  // Single slit: I ∝ (sin α / α)^2,  α = π a sinθ / λ
+  function intensitySingleSlit(yCanvas, params) {
+    const { lambda, a, L, scaleY } = params;
+    const y_m = (yCanvas - geom.midY) * scaleY; // map px -> meters at observation plane
+    const s = sinTheta(y_m, L);
+    const alpha = Math.PI * a * s / lambda;
+    const I = Math.pow(sinc(alpha), 2);
+    return I;
+  }
+
+  // N-slit grating: I ∝ [ (sin(Nδ)/sinδ)^2 / N^2 ] * (sin α/α)^2
+  // δ = π d sinθ / λ ; α = π a sinθ / λ
+  function intensityGrating(yCanvas, params) {
+    const { lambda, a, d, N, L, scaleY } = params;
+    const y_m = (yCanvas - geom.midY) * scaleY;
+    const s = sinTheta(y_m, L);
+    const alpha = Math.PI * a * s / lambda;
+    const delta = Math.PI * d * s / lambda;
+    const envelope = Math.pow(sinc(alpha), 2);
+    let interference;
+    const sd = Math.sin(delta);
+    if (Math.abs(sd) < 1e-10) {
+      interference = 1; // limit as delta -> 0 is N^2 / N^2 = 1 after normalization
+    } else {
+      interference = Math.pow(Math.sin(N * delta) / (N * sd), 2); // normalized by N^2
+    }
+    return envelope * interference;
+  }
+
+  // --------- Ray field ----------
+  // Build a set of parallel rays entering the aperture region
+  function buildRays(nRays, object) {
+    const rays = [];
+    const topY = geom.midY - geom.apertureHeight / 2;
+    const bottomY = geom.midY + geom.apertureHeight / 2;
+
+    // Construct slits
+    const slits = [];
+    if (object.type === 'single') {
+      const a_px = object.a_px;
+      slits.push([geom.midY - a_px/2, geom.midY + a_px/2]);
+    } else {
+      const N = object.N;
+      const a_px = object.a_px;
+      const d_px = object.d_px;
+      const start = geom.midY - ((N - 1) * d_px) / 2;
+      for (let i = 0; i < N; i++) {
+        const cy = start + i * d_px;
+        slits.push([cy - a_px/2, cy + a_px/2]);
+      }
+    }
+
+    // Uniformly distribute incoming rays across the plate height
+    for (let i = 0; i < nRays; i++) {
+      const t = (i + 0.5) / nRays;
+      const y0 = lerp(topY, bottomY, t);
+      // Determine if it passes through any slit
+      let pass = false;
+      for (const [y1, y2] of slits) {
+        if (y0 >= y1 && y0 <= y2) { pass = true; break; }
+      }
+      rays.push({
+        y0,
+        passes: pass,
+        // positions for animation: start at sourceX -> apertureX -> screenX
+        x: geom.sourceX,
+        y: y0,
+        vx: pass ? 180 : 0, // move to the right if passes
+        color: pass ? '#7ef9ff' : '#3a466f',
+      });
+    }
+    return { rays, slits };
+  }
+
+  // --------- Drawing ----------
+  function clear() {
+    // background
+    const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    g.addColorStop(0, '#0c1022');
+    g.addColorStop(1, '#090c1b');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function drawOpticsPlate(slits) {
+    // Opaque plate
+    const x = geom.apertureX;
+    const w = 20;
+    const top = geom.midY - geom.apertureHeight / 2;
+    const h = geom.apertureHeight;
+
+    ctx.fillStyle = geom.plateColor;
+    ctx.fillRect(x - w/2, top, w, h);
+
+    // Carve slits (just draw darker openings)
+    ctx.fillStyle = '#0a0f22';
+    ctx.strokeStyle = '#4b5377';
+    ctx.lineWidth = 1.0;
+    for (const [y1, y2] of slits) {
+      ctx.fillRect(x - w/2 - 1, y1, w + 2, y2 - y1);
+      // optional outline
+      ctx.strokeRect(x - w/2 - 1, y1, w + 2, y2 - y1);
+    }
+  }
+
+  function drawScreen() {
+    const x = geom.screenX;
+    ctx.fillStyle = '#101634';
+    ctx.fillRect(x, geom.top, geom.screenWidth, geom.bottom - geom.top);
+    // edge
+    ctx.strokeStyle = '#2b345c';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, geom.top, geom.screenWidth, geom.bottom - geom.top);
+  }
+
+  function drawSource() {
+    // stylized source (collimated beam)
+    ctx.strokeStyle = '#3a4a7d';
+    ctx.lineWidth = 2;
+    for (let i = -4; i <= 4; i++) {
+      const y = geom.midY + i * 12;
+      ctx.beginPath();
+      ctx.moveTo(geom.sourceX - 20, y);
+      ctx.lineTo(geom.apertureX - 40, y);
+      ctx.stroke();
+    }
+    // label
+    ctx.fillStyle = '#9aa3b2';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText('Collimated source →', geom.sourceX - 10, geom.top - 12);
+  }
+
+  function drawRays(rays, dt, params) {
+    ctx.lineWidth = 1.4;
+    for (const r of rays) {
+      // advance
+      if (params.animate && r.passes) r.x = Math.min(r.x + r.vx * dt, geom.screenX + 2);
+      // draw
+      ctx.strokeStyle = r.color;
+      ctx.beginPath();
+      ctx.moveTo(geom.sourceX, r.y0);
+      if (r.passes) {
+        ctx.lineTo(geom.screenX, r.y0);
+      } else {
+        ctx.lineTo(geom.apertureX - 12, r.y0);
+      }
+      ctx.stroke();
+
+      // moving "photon" dot for passing rays
+      if (r.passes) {
+        ctx.fillStyle = '#aafcff';
+        const px = r.x;
+        const py = r.y;
+        ctx.beginPath();
+        ctx.arc(px, py, 2.0, 0, TAU);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawWavelets(slits, t, params) {
+    // Huygens-like circles from within each slit (few sample points)
+    const x0 = geom.apertureX + 12;
+    const samplesPerSlit = 6;
+    const c = 90; // "speed" of wave for animation
+    const maxR = geom.screenX - x0 - 10;
+    const phase = t * 4;
+
+    ctx.lineWidth = 1.0;
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.35)';
+
+    for (const [y1, y2] of slits) {
+      const h = y2 - y1;
+      for (let i = 0; i < samplesPerSlit; i++) {
+        const sy = y1 + (i + 0.5) * (h / samplesPerSlit);
+        const r = (phase * c) % maxR;
+        // draw a few expanding rings
+        for (let k = 0; k < 4; k++) {
+          const rr = r - k * 30;
+          if (rr <= 0) continue;
+          ctx.beginPath();
+          ctx.arc(x0, sy, rr, -0.15, 0.15); // forward arc
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function drawIntensityOnScreen(params) {
+    // Draw vertical strip with intensity mapped to brightness
+    const { objectType, lambda, a, d, N, L } = params;
+    const x = geom.screenX;
+    const w = geom.screenWidth;
+    const hTop = geom.top;
+    const hBottom = geom.bottom;
+
+    // Map 1 px in canvas to meters on the observation plane vertically.
+    // Choose a scale so that the visible height corresponds to some angular span.
+    // We approximate using small-angle y ≈ L * θ and show ±8 mrad by default.
+    const angularSpan = 0.016; // ±8 mrad total ~ 0.92 degrees full range ~ gentle spread
+    const span_m = L * angularSpan;
+    const scaleY_mPerPx = (2 * span_m) / (hBottom - hTop);
+
+    // Precompute intensities
+    const intensities = new Float32Array(hBottom - hTop);
+    let maxI = 1e-12;
+    for (let py = hTop; py < hBottom; py++) {
+      let I;
+      if (objectType === 'single') {
+        I = intensitySingleSlit(py, { lambda, a, L, scaleY: scaleY_mPerPx });
+      } else {
+        I = intensityGrating(py, { lambda, a, d, N, L, scaleY: scaleY_mPerPx });
+      }
+      intensities[py - hTop] = I;
+      if (I > maxI) maxI = I;
+    }
+
+    // Normalize and draw
+    const img = ctx.createImageData(w, hBottom - hTop);
+    for (let row = 0; row < intensities.length; row++) {
+      const I = intensities[row] / maxI;
+      // Gamma-ish mapping for visibility
+      const val = Math.pow(I, 0.45);
+      const r = Math.floor(184 * val + 24);
+      const g = Math.floor(233 * val + 10);
+      const b = Math.floor(134 * val + 8);
+      for (let col = 0; col < w; col++) {
+        const idx = (row * w + col) * 4;
+        img.data[idx + 0] = r;
+        img.data[idx + 1] = g;
+        img.data[idx + 2] = b;
+        img.data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, x, hTop);
+
+    // Labels
+    ctx.fillStyle = '#9aa3b2';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText('Screen (intensity)', x - 6, hTop - 8);
+  }
+
+  function drawHud(params) {
+    const { lambda_nm, a_um, d_um, N, L_mm, objectType, mode } = params.user;
+    ctx.fillStyle = '#9aa3b2';
+    ctx.font = '12px system-ui, sans-serif';
+    const lines = [
+      `Mode: ${mode === 'ray' ? 'Ray (TracePro-like)' : 'Wave (RCWA-like)'} | Object: ${objectType === 'single' ? 'Single slit' : `N-slit grating (N=${N})`}`,
+      `λ = ${lambda_nm} nm, a = ${a_um} µm${objectType==='grating' ? `, d = ${d_um} µm` : ''},  L = ${L_mm} mm`,
+      `${mode==='wave' ? 'Fraunhofer pattern (analytical)' : 'Geometric rays (no interference)'}`
+    ];
+    let y = geom.bottom + 28;
+    for (const s of lines) {
+      ctx.fillText(s, geom.sourceX, y);
+      y += 16;
+    }
+  }
+
+  // --------- Main loop ----------
+  let last = performance.now();
+  let t = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (state.animate) t += dt;
+
+    // Read UI & build physical params
+    const lambda_nm = parseFloat(controls.wavelength.value);
+    const a_um = parseFloat(controls.slitWidth.value);
+    const d_um = parseFloat(controls.period.value);
+    const N = Math.max(2, Math.round(parseFloat(controls.nslits.value) || 2));
+    const L_mm = parseFloat(controls.distance.value);
+
+    const params = {
+      user: {
+        lambda_nm, a_um, d_um, N, L_mm,
+        mode: controls.mode.value,
+        objectType: controls.objectType.value
+      },
+      lambda: toMeters.nm(lambda_nm),
+      a: toMeters.um(a_um),
+      d: toMeters.um(d_um),
+      N: N,
+      L: toMeters.mm(L_mm),
+      animate: controls.animate.checked
+    };
+    state.animate = controls.animate.checked;
+
+    // Convert slit geometry to canvas px for drawing/selection
+    const pxPerUm = (geom.apertureHeight / 200); // 200 µm span mapped to plate height (visual only)
+    const object = {
+      type: controls.objectType.value,
+      a_px: Math.max(2, a_um * pxPerUm),
+      d_px: Math.max(4, d_um * pxPerUm),
+      N: N
+    };
+
+    // Build ray set & slits once per frame for simplicity (small cost)
+    const { rays, slits } = buildRays(140, object);
+
+    // Draw scene
+    clear();
+    drawSource();
+    drawOpticsPlate(slits);
+    drawScreen();
+
+    if (controls.mode.value === 'ray') {
+      drawRays(rays, dt, params);
+    } else {
+      if (state.animate) drawWavelets(slits, t, params);
+      drawIntensityOnScreen({
+        objectType: controls.objectType.value,
+        lambda: params.lambda,
+        a: params.a,
+        d: params.d,
+        N: params.N,
+        L: params.L
+      });
+    }
+
+    drawHud({ user: params.user });
+
+    state.raf = requestAnimationFrame(frame);
+  }
+
+  const state = { animate: true, raf: null };
+  state.raf = requestAnimationFrame(frame);
+
+  // --------- Events ----------
+  controls.reset.addEventListener('click', () => applyDefaults());
+  ['mode','objectType','wavelength','slitWidth','period','nslits','distance','animate']
+    .forEach(id => controls[id].addEventListener('input', () => {
+      // nothing special; next frame picks up changes
+    }));
+
+})();
+</script>
+</body>
+</html>
